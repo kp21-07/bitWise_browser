@@ -1,6 +1,6 @@
 CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++17 -I./includes
-LDFLAGS = -L./lib -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
+CXXFLAGS = -Wall -Wextra -std=c++17 -I./includes -I/usr/include/lua5.4
+LDFLAGS = -L./lib -lraylib -llua5.4 -lGL -lm -lpthread -ldl -lrt -lX11
 
 TARGET = browser
 SRC = $(wildcard *.cpp) \
