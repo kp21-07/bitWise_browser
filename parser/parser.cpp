@@ -87,7 +87,7 @@ JsonValue Lexer::parse() {
 // JSONDocument implementation (Snapshot & Commit)
 // -------------------------------------------------------------------
 std::optional<Node> JSONDocument::getNode(int id) {
-    std::shared_lock<std::shared_mutex> lock(dom_mutex); // Multiple readers allowed
+    std::shared_lock<std::shared_mutex> lock(dom_mutex);
     if (id >= 0 && id < (int)index_map.size() && index_map[id] != nullptr) {
         // Returns a COPY of the node.
         return *index_map[id];
@@ -95,14 +95,26 @@ std::optional<Node> JSONDocument::getNode(int id) {
     return std::nullopt;
 }
 
-void JSONDocument::update(std::string raw_jsml) {
-    // {Snapshot] Build new DOM in a private working map, so as to not affect UI duirng this process
-		std::string_view view_raw{raw_jsml};
-		std::vector<Node*> working_map;
+std::vector<int> JSONDocument::getElemsByTag(std::string_view tag_name) {
+    // Search API for Lua scripts.
+    std::shared_lock<std::shared_mutex> lock(dom_mutex);
+    std::vector<int> found_ids;
+    for (Node* n : index_map) {
+        if (n != nullptr && n->tag == tag_name) {
+            found_ids.push_back(n->id);
+        }
+    }
+    return found_ids;
+}
+
+void JSONDocument::update(std::string_view raw_jsml) {
+    // {Snapshot] Build new DOM in a private working map, so as to not affect UI during this process
+    std::vector<Node*> working_map;
     int working_id = 1000;
-    
+
     Lexer lexer;
-    lexer.source = view_raw;
+    lexer.source = raw_jsml;
+
     JsonValue root_document = lexer.parse();
     
     std::string new_lua_path = "";
@@ -141,6 +153,9 @@ int JSONDocument::buildNode(const JsonValue& element, std::vector<Node*>& workin
     if (element.object_val.count("id")) {
         explicit_id = (int)element.object_val.at("id").number_val;
     }
+    if (element.object_val.count("tag")) {
+        current_node->tag = std::string(element.object_val.at("tag").string_val);
+    }
     if (element.object_val.count("bgcolour")) {
         current_node->bgcolour = std::string(element.object_val.at("bgcolour").string_val);
     }
@@ -151,7 +166,7 @@ int JSONDocument::buildNode(const JsonValue& element, std::vector<Node*>& workin
         current_node->onclick = std::string(element.object_val.at("onclick").string_val);
     }
     
-    // Parse Type Specific logic
+    // Parse Type Logic
     if (element.object_val.count("text")) {
         current_node->type = NodeType::TEXT;
         const JsonValue& text_data = element.object_val.at("text");

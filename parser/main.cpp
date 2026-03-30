@@ -1,9 +1,9 @@
 #include "parser.hpp"
+#include "lua_bridge.hpp"
 #include <iostream>
 #include <shared_mutex>
 #include <string>
 #include <variant>
-
 
 void JSONDocument::dump() {
     std::shared_lock<std::shared_mutex> lock(dom_mutex);  // Lock for reading
@@ -21,6 +21,7 @@ void JSONDocument::dump() {
             default: std::cout << "UNKNOWN"; break;
         }
 
+        if (!n->tag.empty()) std::cout << " | Tag: [" << n->tag << "]";
         std::cout << " | BG: " << n->bgcolour;
         if (n->spacing != 1) std::cout << " | Spacing: " << n->spacing;
         if (!n->onclick.empty()) std::cout << " | OnClick: " << n->onclick;
@@ -39,7 +40,7 @@ int main() {
     std::string jsml_payload = R"jsml(
 
 {
-    "lua": "/script.lua",
+    "lua": "script.lua",
     "root": {
         "flexv": [
             {
@@ -67,13 +68,25 @@ int main() {
 )jsml";
 
     JSONDocument document;
-    
-    std::cout << "[SYSTEM] Network Engineer just dropped a new page! Parsing...\n";
+    std::cout << "[SYSTEM] Network Engineer parsing new page...\n";
     document.update(jsml_payload);
 
-    std::cout << "[SYSTEM] Target Lua Script found: " << document.lua_path << "\n";
-    
-    document.dump();
+    // 3. RUN THE DIRECTOR (LUA SCRIPT)
+    std::cout << "[SYSTEM] Starting Lua Director...\n";
+    lua_State* L = luaL_newstate();
+    luaL_openlibs(L);
 
+    // Register our C++ API into the Lua world (Snapshot & Commit Bridge)
+    open_browser_api(L, &document);
+
+    // Run the specified script
+    if (luaL_dofile(L, document.lua_path.c_str())) {
+        std::cout << " [ERROR] Lua: " << lua_tostring(L, -1) << "\n";
+    }
+
+    // 4. VERIFY FINAL STATE
+    document.dump();
+    
+    lua_close(L);
     return 0;
 }

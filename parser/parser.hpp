@@ -1,12 +1,11 @@
 #pragma once
-#include <shared_mutex>
-#include <string>
-#include <string_view>
-#include <unordered_map>
-#include <variant>
-#include <vector>
-#include <optional>
-
+#include <optional>     // For safe thread-safe copies
+#include <shared_mutex> // For dom_mutex
+#include <string>       // For specific_data content
+#include <string_view>  // For Zero-Copy parsing
+#include <unordered_map>// For JsonValue objects
+#include <variant>      // For Node specific_data
+#include <vector>       // For Node children and index_map
 
 // -------------------------------------------------------------------
 // NodeType: Types of Elements
@@ -44,7 +43,8 @@ struct FlexData {
 struct Node {
     int id;
     NodeType type;
-   
+    std::string tag = ""; // NEW: For browser.getElemsByTag()
+    
     // Common Properties
     std::string bgcolour = "#ffffff";
     int spacing = 1;
@@ -67,7 +67,7 @@ struct JsonValue {
 };
 
 // -------------------------------------------------------------------
-// Lexer: Recursive JSON Parser
+// Lexer
 // -------------------------------------------------------------------
 struct Lexer {
     std::string_view source; 
@@ -83,24 +83,26 @@ private:
 };
 
 // -------------------------------------------------------------------
-// JSONDocument: Browser's Memory
+// JSONDocument: The Browser's DOM Model
 // -------------------------------------------------------------------
 class JSONDocument {
 private:
+    // Core Data
     std::vector<Node*> index_map;
     int next_safe_fallback_id = 1000;
-    mutable std::shared_mutex dom_mutex; // For Atomicity
+    mutable std::shared_mutex dom_mutex;
 
-    // Internal Recursive Methods
+    // Internal Recursive Builders
     int buildNode(const JsonValue& element, std::vector<Node*>& working_map, int& working_id);
     void registerNode(Node* node, std::vector<Node*>& working_map, int& working_id, int explicit_id = -1);
 
 public:
     std::string lua_path;
 
-    // Declarations for methods
+    // Public API for UI and Scripts
     std::optional<Node> getNode(int id);
-    void update(std::string raw_jsml);
-    
+    std::vector<int> getElemsByTag(std::string_view tag_name);
+    void update(std::string_view raw_jsml);
     void dump();
 };
+
