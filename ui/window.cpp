@@ -1,9 +1,12 @@
 #include "raylib.h"
-#include "window.h"
+#include "../includes/window.hpp"
 #include <iostream>
+#include "../includes/parser.hpp"
+#include "../includes/network.hpp"
+#include <lua.hpp>
 
+void RunWindow(JSONDocument& doc, lua_State* L){
 
-void RunWindow(){
     const int screenWidth = 1024;
     const int screenHeight = 768;
 
@@ -39,9 +42,19 @@ void RunWindow(){
             }
 
             if(IsKeyPressed(KEY_ENTER)){
-                
+                std::cout << "[UI] Navigating to: " << urlText << "\n";
+                fetch(urlText, [&](std::string payload) {
+                    std::cout << "[UI] Network Response Received. Updating DOM...\n";
+                    doc.update(payload);
+
+                    std::cout << "[UI] Executing Lua Director: " << doc.lua_path << "\n";
+                    if (luaL_dofile(L, doc.lua_path.c_str())) {
+                        std::cout << "[UI Error] Lua Script Failed: " << lua_tostring(L, -1) << "\n";
+                    }
+                });
             }
         }
+
 
         BeginDrawing();
         ClearBackground(RAYWHITE);
@@ -62,4 +75,3 @@ void RunWindow(){
     CloseWindow();
 }
 
-void lua

@@ -1,4 +1,4 @@
-#include "lua_api.h"
+#include "../includes/lua_api.hpp"
 #include "raylib.h"
 
 extern "C" {
@@ -28,14 +28,21 @@ int l_getScreenSize(lua_State* L) {
 }
 
 // 2. The function that links C++ to Lua
-void RegisterBrowserAPI(lua_State* L) {
-    // Create a new empty table called 'browser'
-    lua_newtable(L);
-
+void RegisterUIAPI(lua_State* L) {
+    // 1. Fetch the existing 'browser' table, or create it if missing
+    lua_getglobal(L, "browser");
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1); 
+        lua_newtable(L); 
+        lua_pushvalue(L, -1); 
+        lua_setglobal(L, "browser");
+    }
+    
     // Attach our C++ function to the table under the name "getScreenSize"
     lua_pushcfunction(L, l_getScreenSize);
     lua_setfield(L, -2, "getScreenSize");
 
-    // Save this table as a global variable in Lua named "browser"
-    lua_setglobal(L, "browser");
+    // 3. Clean up the stack
+    lua_pop(L, 1);
 }
+

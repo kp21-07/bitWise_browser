@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <iostream>
 #include <netdb.h>
+#include <functional>
 #include <string>
 #include <sys/socket.h>
 #include <thread>

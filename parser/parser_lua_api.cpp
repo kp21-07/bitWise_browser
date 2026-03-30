@@ -1,4 +1,5 @@
-#include "lua_bridge.hpp"
+#include "../includes/lua_api.hpp"
+#include "../includes/parser.hpp"
 #include <iostream>
 
 // Helper to push a Node's data onto the Lua stack as a table
@@ -41,16 +42,25 @@ static int l_getElem(lua_State* L) {
     return 1;
 }
 
-void open_browser_api(lua_State* L, JSONDocument* doc) {
-    // Create the 'browser' global table
-    lua_newtable(L);
+void RegisterParserAPI(lua_State* L, JSONDocument* doc) {
+    // 1. Fetch the existing 'browser' table, or create it if missing
+    lua_getglobal(L, "browser");
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1); 
+        lua_newtable(L); 
+        lua_pushvalue(L, -1); 
+        lua_setglobal(L, "browser");
+    }
     
-    // Add getElem function to the 'browser' table
+    // The 'browser' table is now on the top of the stack
+    
+    // 2. Add getElem function
     lua_pushstring(L, "getElem");
     lua_pushlightuserdata(L, doc);       // Arg 1: Pointer to our C++ Doc
-    lua_pushcclosure(L, l_getElem, 1);  // The '1' means l_getElem gets the Doc pointer as an 'upvalue'
+    lua_pushcclosure(L, l_getElem, 1);  // l_getElem gets the Doc pointer as an 'upvalue'
     lua_settable(L, -3);
     
-    // Set the table globally as 'browser'
-    lua_setglobal(L, "browser");
+    // 3. Clean up the stack
+    lua_pop(L, 1);
 }
+

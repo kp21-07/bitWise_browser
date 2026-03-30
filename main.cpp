@@ -1,5 +1,6 @@
-#include "window.h"
-#include "lua_api.h"
+#include "includes/window.hpp"
+#include "includes/lua_api.hpp"
+#include "includes/parser.hpp"
 
 extern "C" {
 #include <lualib.h>
@@ -7,13 +8,21 @@ extern "C" {
 }
 
 int main() {
+    // 1. Initialize the C++ DOM
+    JSONDocument document;
+
+    // 2. Initialize Lua Director
     lua_State* L = luaL_newstate();
     luaL_openlibs(L);
 
-    RegisterBrowserAPI(L);
+    // 3. Connect UI API and Parser API to the Director
+    RegisterUIAPI(L);
+    RegisterParserAPI(L, &document);
 
-    RunWindow();
+    // 4. Start the Visual Engine
+    RunWindow(document, L);
 
     lua_close(L);
     return 0;
 }
+

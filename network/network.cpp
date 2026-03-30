@@ -44,11 +44,13 @@ string asyncGetRequest(const string &host, const string &port, const string &pat
   return response;
 }
 
-void fetch(const string url, void (*func)(string)) {
+void fetch(const string url, function<void(string)> func) {
   thread([url, func] {
     currentUrl = url;
     string response = asyncGetRequest(url, "80", "/");
-    func(response);
+
+    if(!response.empty()) func(response);
+    else func("Error");
   }).detach();
 }
 
