@@ -18,6 +18,6 @@ using namespace std;
 
 string asyncGetRequest(const string &host, const string &port, const string &path);
 
-void fetch(const string url, std::function<void(string)> func);
+void fetch(const string url, function<void(string)> func);
 
 #endif

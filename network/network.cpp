@@ -44,7 +44,7 @@ string asyncGetRequest(const string &host, const string &port, const string &pat
   return response;
 }
 
-void fetch(const string url, std::function<void(string)> func) {
+void fetch(const string url, function<void(string)> func) {
   thread([url, func] {
     currentUrl = url;
 
