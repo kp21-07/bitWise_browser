@@ -44,11 +44,15 @@ string asyncGetRequest(const string &host, const string &port, const string &pat
   return response;
 }
 
-void fetch(const string url, function<void(string)> func) {
+void fetch(const string url, std::function<void(string)> func) {
   thread([url, func] {
     currentUrl = url;
-    string response = asyncGetRequest(url, "80", "/");
 
+    string fetchUrl = url;
+    if (fetchUrl.length() >= 7 && fetchUrl.substr(0, 7) == "http://") fetchUrl = fetchUrl.substr(7);
+    if (fetchUrl.length() >= 8 && fetchUrl.substr(0, 8) == "https://") fetchUrl = fetchUrl.substr(8);
+
+    string response = asyncGetRequest(fetchUrl, "80", "/");
     if(!response.empty()) func(response);
     else func("Error");
   }).detach();
@@ -66,3 +70,4 @@ int main() {
   return 0;
 }
 #endif
+
