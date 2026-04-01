@@ -201,6 +201,18 @@ int JSONDocument::buildNode(const JsonValue& element, std::vector<Node*>& workin
             }
         }
     }
+    else if (element.object_val.count("flexh")) {
+        current_node->type = NodeType::FLEXH;
+        const JsonValue& children_array = element.object_val.at("flexh");
+        if (children_array.type == JsonValue::ARRAY) {
+            for (const auto& child_json : children_array.array_val) {
+                int child_id = buildNode(child_json, working_map, working_id); 
+                if (child_id != -1) {
+                    current_node->children.push_back(child_id);
+                }
+            }
+        }
+    }
     
     registerNode(current_node, working_map, working_id, explicit_id);
     return current_node->id;

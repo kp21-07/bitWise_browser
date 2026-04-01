@@ -1,4 +1,4 @@
-#include "raylib.h"
+#include "../includes/raylib.h"
 #include "../includes/window.hpp"
 #include <iostream>
 #include "../includes/parser.hpp"
@@ -92,17 +92,18 @@ static void NetworkCallback(std::string payload) {
 
 void RunWindow(JSONDocument& doc, lua_State* L){
 
-    const int screenWidth = 1024;
-    const int screenHeight = 768;
-
-    InitWindow(screenWidth, screenHeight, "JSML Browser");
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    InitWindow(1024, 768, "JSML Browser");
     SetTargetFPS(60);
 
-    Rectangle urlBar = { 20, 20, (float)screenWidth - 40, 40 };
     std::string urlText = "http://";
     bool isUrlBarActive = false;
 
     while (!WindowShouldClose()) {
+        int screenWidth = GetScreenWidth();
+        int screenHeight = GetScreenHeight();
+        
+        Rectangle urlBar = { 20, 20, (float)screenWidth - 40, 40 };
         if (CheckCollisionPointRec(GetMousePosition(), urlBar)) {
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                 isUrlBarActive = true;
