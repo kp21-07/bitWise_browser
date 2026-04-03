@@ -3,9 +3,20 @@
 #include <iostream>
 #include "../includes/parser.hpp"
 #include "../includes/network.hpp"
-#include <lua.hpp>
 #include <string>
 #include <vector>
+#include <mutex>
+#include <map>
+
+extern "C" {
+#include <lua.h>
+#include <lualib.h>
+#include <lauxlib.h>
+}
+
+// External access for Lua API
+std::mutex g_lua_mutex;
+std::map<int, int> g_click_handlers; // NodeID -> Lua registry reference
 
 Color ParseHexColor(const std::string& hex) {
     if (hex.length() >= 7 && hex[0] == '#') {
@@ -34,6 +45,9 @@ void RenderNode(JSONDocument& doc, int node_id, Rectangle bounds) {
     if (!node_opt.has_value()) return;
 
     Node node = node_opt.value();
+    
+    // Store layout bounds for hit-testing and browser.getElemRect
+    doc.setElemRect(node_id, { bounds.x, bounds.y, bounds.width, bounds.height });
 
     Color bg = ParseHexColor(node.bgcolour);
     DrawRectangleRec(bounds, bg);
@@ -84,6 +98,7 @@ static void NetworkCallback(std::string payload) {
 
     std::cout << "[UI] Executing Lua Director: " << (g_doc ? g_doc->lua_path : "") << "\n";
     if (g_L && g_doc && !g_doc->lua_path.empty()) {
+        std::lock_guard<std::mutex> lock(g_lua_mutex);
         if (luaL_dofile(g_L, g_doc->lua_path.c_str())) {
             std::cout << "[UI Error] Lua Script Failed: " << lua_tostring(g_L, -1) << "\n";
         }
@@ -151,6 +166,27 @@ void RunWindow(JSONDocument& doc, lua_State* L){
         int root_id = FindRootID(doc);
         if (root_id != -1) {
             RenderNode(doc, root_id, { 0, 70, (float)screenWidth, (float)screenHeight - 70 });
+        }
+
+        // Handle Click Events for registered handlers
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !isUrlBarActive) {
+            Vector2 mouse = GetMousePosition();
+            std::lock_guard<std::mutex> lock(g_lua_mutex);
+            for (auto const& [node_id, handler_ref] : g_click_handlers) {
+                auto rect_opt = doc.getElemRect(node_id);
+                if (rect_opt.has_value()) {
+                    Rect r = rect_opt.value();
+                    if (CheckCollisionPointRec(mouse, { r.x, r.y, r.width, r.height })) {
+                        // Trigger Lua Callback
+                        lua_rawgeti(L, LUA_REGISTRYINDEX, handler_ref);
+                        if (lua_pcall(L, 0, 0, 0) != 0) {
+                            std::cout << "[Lua Error] Click Handler Failed: " << lua_tostring(L, -1) << "\n";
+                            lua_pop(L, 1);
+                        }
+                        break; // Stop at first handler found (Z-order not handled yet)
+                    }
+                }
+            }
         }
 
         EndDrawing();

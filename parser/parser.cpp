@@ -26,11 +26,11 @@ void Lexer::skip_whitespace() {
     }
 }
 
-std::string_view Lexer::read_string() {
+std::string Lexer::read_string() {
     if (source[pos] == '"') pos++; 
     size_t start = pos;
     while (pos < source.length() && source[pos] != '"') pos++;
-    std::string_view result = source.substr(start, pos - start);
+    std::string result(source.substr(start, pos - start));
     if (pos < source.length()) pos++; 
     return result;
 }
@@ -45,7 +45,7 @@ JsonValue Lexer::parse() {
         while (pos < source.length() && source[pos] != '}') {
             skip_whitespace();
             if (source[pos] == '"') {
-                std::string_view key = read_string();
+                std::string key = read_string();
                 skip_whitespace();
                 if (source[pos] == ':') pos++;
                 val.object_val[key] = parse();
@@ -107,23 +107,101 @@ std::vector<int> JSONDocument::getElemsByTag(std::string_view tag_name) {
     return found_ids;
 }
 
+void JSONDocument::updateNode(int id, const std::unordered_map<std::string, std::string>& props) {
+    std::unique_lock<std::shared_mutex> lock(dom_mutex);
+    if (id >= 0 && id < (int)index_map.size() && index_map[id] != nullptr) {
+        Node* n = index_map[id];
+        if (props.count("bgcolour")) n->bgcolour = props.at("bgcolour");
+        if (props.count("onclick")) n->onclick = props.at("onclick");
+        if (props.count("tag")) n->tag = props.at("tag");
+        if (props.count("spacing")) {
+            try { n->spacing = std::stoi(props.at("spacing")); } catch(...) {}
+        }
+        
+        if (props.count("text")) {
+            if (std::holds_alternative<TextData>(n->specific_data)) {
+                std::get<TextData>(n->specific_data).content = props.at("text");
+            }
+        }
+        if (props.count("colour")) {
+            if (std::holds_alternative<TextData>(n->specific_data)) {
+                std::get<TextData>(n->specific_data).colour = props.at("colour");
+            }
+        }
+        if (props.count("fontsize")) {
+            if (std::holds_alternative<TextData>(n->specific_data)) {
+                try { std::get<TextData>(n->specific_data).fontsize = std::stoi(props.at("fontsize")); } catch(...) {}
+            }
+        }
+    }
+}
+
+std::optional<Rect> JSONDocument::getElemRect(int id) {
+    std::shared_lock<std::shared_mutex> lock(dom_mutex);
+    if (id >= 0 && id < (int)index_map.size() && index_map[id] != nullptr) {
+        return index_map[id]->last_layout;
+    }
+    return std::nullopt;
+}
+
+void JSONDocument::setElemRect(int id, Rect rect) {
+    std::unique_lock<std::shared_mutex> lock(dom_mutex);
+    if (id >= 0 && id < (int)index_map.size() && index_map[id] != nullptr) {
+        index_map[id]->last_layout = rect;
+    }
+}
+
+void JSONDocument::dump() {
+    // Basic implementation for debugging
+}
+
 void JSONDocument::update(std::string_view raw_jsml) {
-    // {Snapshot] Build new DOM in a private working map, so as to not affect UI during this process
     std::vector<Node*> working_map;
     int working_id = 1000;
-
-    Lexer lexer;
-    lexer.source = raw_jsml;
-
-    JsonValue root_document = lexer.parse();
-    
     std::string new_lua_path = "";
-    if (root_document.object_val.count("lua")) {
-        new_lua_path = std::string(root_document.object_val.at("lua").string_val);
-    }
 
-    if (root_document.object_val.count("root")) {
-        buildNode(root_document.object_val.at("root"), working_map, working_id);
+    auto createErrorPage = [&](const std::string& msg) {
+        Node* error_node = new Node();
+        error_node->id = 0; // Standard Root ID
+        error_node->type = NodeType::TEXT;
+        error_node->bgcolour = "#aa0000"; // Red background
+        error_node->tag = "error";
+        
+        TextData td;
+        td.content = msg;
+        td.colour = "#ffffff"; // White text
+        td.fontsize = 30;
+        error_node->specific_data = td;
+        
+        working_map.resize(1, nullptr);
+        working_map[0] = error_node;
+    };
+
+    if (raw_jsml == "Error") {
+        createErrorPage("404 Not Found / Network Error");
+    } else {
+        Lexer lexer;
+        lexer.source = raw_jsml;
+
+        try {
+            JsonValue root_document = lexer.parse();
+            
+            if (root_document.type != JsonValue::OBJECT) {
+                createErrorPage("Invalid JSML: Root must be an object");
+            } else {
+                if (root_document.object_val.count("lua")) {
+                    new_lua_path = root_document.object_val.at("lua").string_val;
+                }
+
+                if (root_document.object_val.count("root")) {
+                    buildNode(root_document.object_val.at("root"), working_map, working_id);
+                } else {
+                    createErrorPage("Invalid JSML: Missing 'root' key");
+                }
+            }
+        } catch (...) {
+            createErrorPage("Parsing Failed: Malformed JSML");
+        }
     }
 
     // [Commit] Swap pointers during lock
@@ -150,20 +228,26 @@ int JSONDocument::buildNode(const JsonValue& element, std::vector<Node*>& workin
     int explicit_id = -1; 
     
     // Parse Standard Base Properties
+    // 'id' is optional integer, 'tag' is optional string
     if (element.object_val.count("id")) {
         explicit_id = (int)element.object_val.at("id").number_val;
     }
     if (element.object_val.count("tag")) {
-        current_node->tag = std::string(element.object_val.at("tag").string_val);
+        current_node->tag = element.object_val.at("tag").string_val;
     }
+    
+    // Aliases for background color
     if (element.object_val.count("bgcolour")) {
-        current_node->bgcolour = std::string(element.object_val.at("bgcolour").string_val);
+        current_node->bgcolour = element.object_val.at("bgcolour").string_val;
+    } else if (element.object_val.count("bgcolor")) {
+        current_node->bgcolour = element.object_val.at("bgcolor").string_val;
     }
+    
     if (element.object_val.count("spacing")) {
         current_node->spacing = (int)element.object_val.at("spacing").number_val;
     }
     if (element.object_val.count("onclick")) {
-        current_node->onclick = std::string(element.object_val.at("onclick").string_val);
+        current_node->onclick = element.object_val.at("onclick").string_val;
     }
     
     // Parse Type Logic
@@ -172,9 +256,14 @@ int JSONDocument::buildNode(const JsonValue& element, std::vector<Node*>& workin
         const JsonValue& text_data = element.object_val.at("text");
         TextData td;
         if (text_data.object_val.count("content")) 
-            td.content = std::string(text_data.object_val.at("content").string_val);
+            td.content = text_data.object_val.at("content").string_val;
+        
+        // Aliases for text color
         if (text_data.object_val.count("colour")) 
-            td.colour = std::string(text_data.object_val.at("colour").string_val);
+            td.colour = text_data.object_val.at("colour").string_val;
+        else if (text_data.object_val.count("color"))
+            td.colour = text_data.object_val.at("color").string_val;
+            
         if (text_data.object_val.count("fontsize")) 
             td.fontsize = (int)text_data.object_val.at("fontsize").number_val;
         current_node->specific_data = td;

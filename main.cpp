@@ -16,7 +16,7 @@ int main() {
     luaL_openlibs(L);
 
     // 3. Connect UI API and Parser API to the Director
-    RegisterUIAPI(L);
+    RegisterUIAPI(L, &document);
     RegisterParserAPI(L, &document);
 
     // 4. Start the Visual Engine

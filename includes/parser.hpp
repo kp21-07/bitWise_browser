@@ -38,6 +38,13 @@ struct FlexData {
 };
 
 // -------------------------------------------------------------------
+// Common Utilities
+// -------------------------------------------------------------------
+struct Rect {
+    float x, y, width, height;
+};
+
+// -------------------------------------------------------------------
 // Node Structure
 // -------------------------------------------------------------------
 struct Node {
@@ -49,6 +56,7 @@ struct Node {
     std::string bgcolour = "#ffffff";
     int spacing = 1;
     std::string onclick = "";
+    Rect last_layout = { 0, 0, 0, 0 }; // Stores results of last render pass
     
     std::variant<std::monostate, TextData, ImageData, FlexData> specific_data; 
     std::vector<int> children; 
@@ -60,9 +68,9 @@ struct Node {
 struct JsonValue {
     enum Type { STRING, NUMBER, OBJECT, ARRAY, BOOLEAN, NULL_VAL };
     Type type = NULL_VAL;
-    std::string_view string_val; 
+    std::string string_val; 
     double number_val = 0;
-    std::unordered_map<std::string_view, JsonValue> object_val; 
+    std::unordered_map<std::string, JsonValue> object_val; 
     std::vector<JsonValue> array_val;
 };
 
@@ -72,12 +80,12 @@ struct JsonValue {
 struct Lexer {
     std::string_view source; 
     size_t pos = 0;
-
+    
     JsonValue parse();
 
 private:
     void skip_whitespace();
-    std::string_view read_string(); 
+    std::string read_string(); 
     bool is_space(char c);
     bool is_digit(char c);
 };
@@ -103,6 +111,9 @@ public:
     std::optional<Node> getNode(int id);
     std::vector<int> getElemsByTag(std::string_view tag_name);
     void update(std::string_view raw_jsml);
+    void updateNode(int id, const std::unordered_map<std::string, std::string>& props);
+    std::optional<Rect> getElemRect(int id);
+    void setElemRect(int id, Rect rect);
     void dump();
 };
 
