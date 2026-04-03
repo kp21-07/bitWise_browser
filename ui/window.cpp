@@ -6,6 +6,16 @@
 #include <lua.hpp>
 #include <string>
 #include <vector>
+#include <unordered_map>
+
+static std::unordered_map<std::string, Texture2D> g_texture_cache;
+
+static Texture2D GetCachedTexture(const std::string& url) {
+    if (g_texture_cache.find(url) == g_texture_cache.end()) {
+        g_texture_cache[url] = LoadTexture(url.c_str());
+    }
+    return g_texture_cache[url];
+}
 
 Color ParseHexColor(const std::string& hex) {
     if (hex.length() >= 7 && hex[0] == '#') {
@@ -47,8 +57,14 @@ void RenderNode(JSONDocument& doc, int node_id, Rectangle bounds) {
     } else if (node.type == NodeType::IMAGE) {
         if (std::holds_alternative<ImageData>(node.specific_data)) {
             auto img_data = std::get<ImageData>(node.specific_data);
-            DrawRectangleLinesEx(bounds, 2, GRAY);
-            DrawText(img_data.alttext.c_str(), bounds.x + 5, bounds.y + 5, 20, DARKGRAY);
+            Texture2D tex = GetCachedTexture(img_data.url);
+            if (tex.id != 0) {
+                Rectangle sourceRec = { 0.0f, 0.0f, (float)tex.width, (float)tex.height };
+                DrawTexturePro(tex, sourceRec, bounds, {0.0f, 0.0f}, 0.0f, WHITE);
+            } else {
+                DrawRectangleLinesEx(bounds, 2, GRAY);
+                DrawText(img_data.alttext.c_str(), bounds.x + 5, bounds.y + 5, 20, DARKGRAY);
+            }
         }
     } else if (node.type == NodeType::FLEXV) {
         int count = node.children.size();
@@ -155,6 +171,13 @@ void RunWindow(JSONDocument& doc, lua_State* L){
 
         EndDrawing();
     }
+
+    for (auto& pair : g_texture_cache) {
+        if (pair.second.id != 0) {
+            UnloadTexture(pair.second);
+        }
+    }
+    g_texture_cache.clear();
 
     CloseWindow();
 }
