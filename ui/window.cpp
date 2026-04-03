@@ -10,6 +10,11 @@
 
 static std::unordered_map<std::string, Texture2D> g_texture_cache;
 
+float backspaceTimer = 0.0f;
+float backspaceRepeatTimer = 0.0f;
+const float BACKSPACE_DELAY = 0.5f;
+const float BACKSPACE_REPEAT = 0.05f;
+
 static Texture2D GetCachedTexture(const std::string& url) {
     if (g_texture_cache.find(url) == g_texture_cache.end()) {
         g_texture_cache[url] = LoadTexture(url.c_str());
@@ -124,7 +129,11 @@ void RunWindow(JSONDocument& doc, lua_State* L){
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                 isUrlBarActive = true;
             }
-        } else {
+        }
+        else if(IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_E)){
+            isUrlBarActive = true;
+        }
+        else {
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                 isUrlBarActive = false;
             }
@@ -141,13 +150,26 @@ void RunWindow(JSONDocument& doc, lua_State* L){
 
             if (IsKeyPressed(KEY_BACKSPACE) && urlText.length() > 0) {
                 urlText.pop_back();
+                backspaceTimer = 0.0f;
+            }
+
+            if (IsKeyDown(KEY_BACKSPACE)) {
+                if (urlText.length() > 0) {
+                    backspaceTimer += GetFrameTime();
+                    if (backspaceTimer >= BACKSPACE_DELAY) {
+                        urlText.pop_back();
+                        backspaceTimer = BACKSPACE_DELAY - BACKSPACE_REPEAT;
+                    }
+                }
+            } else {
+                backspaceTimer = 0.0f;
             }
 
             if (IsKeyPressed(KEY_ENTER)) {
                 std::cout << "[UI] Navigating to: " << urlText << "\n";
                 g_doc = &doc;
                 g_L = L;
-                fetch(urlText, NetworkCallback);
+                debugFetch(urlText, NetworkCallback);
             }
         }
 
