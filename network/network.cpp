@@ -1,9 +1,15 @@
 #include "../includes/network.hpp"
+#include <bits/types/struct_timeval.h>
 #include <chrono>
+#include <cstdio>
+#include <fcntl.h>
 #include <iostream>
 #include <netdb.h>
 #include <string>
+#include <sys/socket.h>
 #include <thread>
+#include <fstream>
+#include <sstream>
 #include <unistd.h>
 
 using namespace std;
@@ -44,17 +50,52 @@ string asyncGetRequest(const string &host, const string &port, const string &pat
   return response;
 }
 
+string readFromFile(const string filename){
+  ifstream file(filename);
+
+  if (!file.is_open()) {
+        std::cerr << "Error: Could not open file " << filename << std::endl;
+        return "";
+  }
+
+  stringstream buffer;
+  buffer << file.rdbuf();
+  return buffer.str();
+}
+
+void debugFetch(const string url, function<void(string)> func){
+thread([url, func] {
+    currentUrl = url;
+
+    string fetchUrl = url;
+    if (fetchUrl.length() >= 7 && fetchUrl.substr(0, 7) == "http://")
+      fetchUrl = fetchUrl.substr(7);
+    if (fetchUrl.length() >= 8 && fetchUrl.substr(0, 8) == "https://")
+      fetchUrl = fetchUrl.substr(8);
+
+    string response = readFromFile(fetchUrl);
+    if (!response.empty())
+      func(response);
+    else
+      func("Error");
+  }).detach();
+}
+
 void fetch(const string url, function<void(string)> func) {
   thread([url, func] {
     currentUrl = url;
 
     string fetchUrl = url;
-    if (fetchUrl.length() >= 7 && fetchUrl.substr(0, 7) == "http://") fetchUrl = fetchUrl.substr(7);
-    if (fetchUrl.length() >= 8 && fetchUrl.substr(0, 8) == "https://") fetchUrl = fetchUrl.substr(8);
+    if (fetchUrl.length() >= 7 && fetchUrl.substr(0, 7) == "http://")
+      fetchUrl = fetchUrl.substr(7);
+    if (fetchUrl.length() >= 8 && fetchUrl.substr(0, 8) == "https://")
+      fetchUrl = fetchUrl.substr(8);
 
     string response = asyncGetRequest(fetchUrl, "80", "/");
-    if(!response.empty()) func(response);
-    else func("Error");
+    if (!response.empty())
+      func(response);
+    else
+      func("Error");
   }).detach();
 }
 
@@ -70,4 +111,3 @@ int main() {
   return 0;
 }
 #endif
-
