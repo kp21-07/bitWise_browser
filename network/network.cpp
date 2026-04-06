@@ -3,13 +3,13 @@
 #include <chrono>
 #include <cstdio>
 #include <fcntl.h>
+#include <fstream>
 #include <iostream>
 #include <netdb.h>
+#include <sstream>
 #include <string>
 #include <sys/socket.h>
 #include <thread>
-#include <fstream>
-#include <sstream>
 #include <unistd.h>
 
 using namespace std;
@@ -50,12 +50,12 @@ string asyncGetRequest(const string &host, const string &port, const string &pat
   return response;
 }
 
-string readFromFile(const string filename){
+string readFromFile(const string filename) {
   ifstream file(filename);
 
   if (!file.is_open()) {
-        std::cerr << "Error: Could not open file " << filename << std::endl;
-        return "";
+    std::cerr << "Error: Could not open file " << filename << std::endl;
+    return "";
   }
 
   stringstream buffer;
@@ -63,8 +63,8 @@ string readFromFile(const string filename){
   return buffer.str();
 }
 
-void debugFetch(const string url, function<void(string)> func){
-thread([url, func] {
+void debugFetch(const string url, function<void(string)> func) {
+  thread([url, func] {
     currentUrl = url;
 
     string fetchUrl = url;
